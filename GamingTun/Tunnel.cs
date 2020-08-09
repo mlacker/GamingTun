@@ -49,7 +49,7 @@ namespace GamingTun
                 Console.WriteLine($"From {remoteEndPoint.Address}:{remoteEndPoint.Port}: {Encoding.UTF8.GetString(buffer)}");
 
                 await stream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
+                stream.Flush();
             }
         }
 
@@ -57,12 +57,20 @@ namespace GamingTun
         {
             var buffer = new byte[BUFFER_SIZE];
 
+            await Task.Delay(10);
+
             while (!cancellationToken.IsCancellationRequested)
             {
-                var count = await stream.ReadAsync(buffer, 0, BUFFER_SIZE, cancellationToken);
-                
-                _ = client.SendAsync(buffer, count, remoteEndPoint);
+                var count = stream.Read(buffer, 0, BUFFER_SIZE);
+
+                client.Send(buffer, count, remoteEndPoint);
             }
+        }
+
+        public Task SendString(string text)
+        {
+            var buffer = Encoding.Default.GetBytes(text);
+            return client.SendAsync(buffer, buffer.Length, remoteEndPoint);
         }
 
         public void Dispose()

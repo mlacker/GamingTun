@@ -37,25 +37,19 @@ namespace GamingTun
                 _ = tunnel.Send(cancellationTokenSource.Token);
                 _ = tunnel.Receive(cancellationTokenSource.Token);
 
-                Wait();
+                await Wait();
             }
         }
 
-        private void Wait()
+        private Task Wait()
         {
-            Console.WriteLine("Program is running");
-
-            var input = string.Empty;
-            while (input != "exit")
-            {
-                input = Console.ReadLine();
-            }
+            Console.WriteLine("Program is running, Press any key to exit");
+            Console.ReadKey(true);
 
             Console.WriteLine("Shutting down...");
             cancellationTokenSource.Cancel();
 
-            Console.WriteLine("Press any key to exit");
-            Console.ReadKey(true);
+            return Task.Delay(1000);
         }
     }
 }
