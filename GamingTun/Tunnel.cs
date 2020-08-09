@@ -10,19 +10,23 @@ namespace GamingTun
 {
     public class Tunnel : IDisposable
     {
-        private readonly TapAdapter adapter;
-        private readonly UdpClient client;
+        private const int BUFFER_SIZE = 1464;
 
-        public Tunnel(int port)
+        private readonly UdpClient client;
+        private readonly Stream stream;
+        private IPEndPoint remoteEndPoint;
+
+        public Tunnel(int port, TapAdapter adapter)
         {
             client = new UdpClient(port, AddressFamily.InterNetwork);
+            stream = adapter.Stream;
         }
 
         private volatile bool state;
 
         public Task Connect(IPEndPoint endPoint)
         {
-            client.Connect(endPoint);
+            remoteEndPoint = endPoint;
 
             state = true;
 
@@ -37,18 +41,28 @@ namespace GamingTun
 
                 if (!state)
                 {
-                    //await Connect(receiveResult.RemoteEndPoint);
+                    await Connect(receiveResult.RemoteEndPoint);
                 }
 
                 var buffer = receiveResult.Buffer;
 
-                Console.WriteLine($"From {receiveResult.RemoteEndPoint.Port}: {Encoding.UTF8.GetString(buffer)}");
+                Console.WriteLine($"From {remoteEndPoint.Address}:{remoteEndPoint.Port}: {Encoding.UTF8.GetString(buffer)}");
+
+                await stream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
             }
         }
 
-        public async Task Send(byte[] buffer)
+        public async Task Send(CancellationToken cancellationToken)
         {
-            await client.SendAsync(buffer, buffer.Length);
+            var buffer = new byte[BUFFER_SIZE];
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var count = await stream.ReadAsync(buffer, 0, BUFFER_SIZE, cancellationToken);
+                
+                _ = client.SendAsync(buffer, count, remoteEndPoint);
+            }
         }
 
         public void Dispose()

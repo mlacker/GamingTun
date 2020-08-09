@@ -12,78 +12,50 @@ namespace GamingTun
         {
             var program = new Program();
 
-            program.Setup();
-
-            Task.Run(program.Tunnel).Wait();
-
-            program.Wait();
+            Task.Run(program.Test).Wait();
         }
 
-        private void Adapter()
+        private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+
+        private async Task Test()
         {
-            var config1 = new Config()
+            var config = new Config()
             {
-                AdapterName = "Tun1",
-                Local = IPAddress.Parse("192.168.46.10")
+                Local = IPAddress.Parse("192.168.46.10"),
+                RemoteNetwork = IPAddress.Parse("192.168.46.0"),
+                RemoteNetmask = IPAddress.Parse("255.255.255.0")
             };
-            var adapter1 = new TapAdapter(config1);
-            var config2 = new Config()
+            var remoteEP = new IPEndPoint(IPAddress.Parse("122.224.94.220"), 31194);
+
+            using (var adapter = new TapAdapter(config))
+            using (var tunnel = new Tunnel(6000, adapter))
             {
-                AdapterName = "Tun2",
-                Local = IPAddress.Parse("192.168.46.20")
-            };
-            var adapter2 = new TapAdapter(config2);
-            adapter1.Start();
-            adapter2.Start();
-            adapter1.OtherAdapter = adapter2;
-            adapter2.OtherAdapter = adapter1;
-            Task.Run(adapter1.Run);
-            Task.Run(adapter2.Run);
-            Console.WriteLine("Program is running");
-            adapter1.Stop();
-            adapter2.Stop();
-        }
+                adapter.Start();
 
-        private async Task Tunnel()
-        {
-            using (Tunnel tun1 = new Tunnel(6000))
-            using (Tunnel tun2 = new Tunnel(6050))
-            {
-                var cancellationTokenSource = new CancellationTokenSource();
-                var task1 = tun1.Receive(cancellationTokenSource.Token);
-                var task2 = tun2.Receive(cancellationTokenSource.Token);
+                await tunnel.Connect(remoteEP);
 
-                await tun1.Connect(new IPEndPoint(IPAddress.Parse("172.16.10.38"), 6050));
+                _ = tunnel.Send(cancellationTokenSource.Token);
+                _ = tunnel.Receive(cancellationTokenSource.Token);
 
-                string input;
-
-                do
-                {
-                    input = Console.ReadLine();
-
-                    await tun1.Send(Encoding.Default.GetBytes(input));
-
-                } while (input != "exit");
-
-                cancellationTokenSource.Cancel();
+                Wait();
             }
-        }
-
-        private void Setup()
-        {
-            Console.CancelKeyPress += Console_CancelKeyPress;
         }
 
         private void Wait()
         {
+            Console.WriteLine("Program is running");
+
+            var input = string.Empty;
+            while (input != "exit")
+            {
+                input = Console.ReadLine();
+            }
+
+            Console.WriteLine("Shutting down...");
+            cancellationTokenSource.Cancel();
+
             Console.WriteLine("Press any key to exit");
             Console.ReadKey(true);
-            Console.WriteLine("Shutting down...");
-        }
-
-        private void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
-        {
-            e.Cancel = true;
         }
     }
 }
