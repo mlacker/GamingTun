@@ -144,30 +144,29 @@ namespace GamingTun
 
 		private struct GetMacResult
 		{
-			[MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
-			public byte[] mac;
-		}
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+            private byte[] mac;
+
+            public byte[] Mac { get => mac; set => mac = value; }
+        }
 
 		public string GetMac()
 		{
-			return DeviceIoControl<GetMacResult>(TAP_IOCTL_GET_MAC, null).mac.Select(b => b.ToString("X2")).Aggregate((s1, s2) => s1 + "-" + s2);
+			return DeviceIoControl<GetMacResult>(TAP_IOCTL_GET_MAC, null).Mac.Select(b => b.ToString("X2")).Aggregate((s1, s2) => s1 + "-" + s2);
 		}
 
 		private struct GetVersionResult
 		{
-			[MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-			public int[] version;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
+            private int[] version;
 
-			public GetVersionResult(int[] version)
-			{
-				this.version = version;
-			}
-		}
+            public int[] Version { get => version; set => version = value; }
+        }
 
 		public Version GetVersion()
 		{
 			var data = DeviceIoControl<GetVersionResult>(TAP_IOCTL_GET_VERSION, null);
-			return new Version(data.version[0], data.version[1], data.version[2]);
+			return new Version(data.Version[0], data.Version[1], data.Version[2]);
 		}
 
 		public int GetMtu()
@@ -177,13 +176,15 @@ namespace GamingTun
 
 		private struct GetInfoResult
 		{
-			[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-			public string info;
-		}
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+            private string info;
+
+            public string Info { get => info; set => info = value; }
+        }
 
 		public string GetInfo()
 		{
-			return DeviceIoControl<GetInfoResult>(TAP_IOCTL_GET_INFO, null).info;
+			return DeviceIoControl<GetInfoResult>(TAP_IOCTL_GET_INFO, null).Info;
 		}
 
 		public byte SetMediaStatus(bool state)
@@ -272,15 +273,17 @@ namespace GamingTun
 
 		private struct GetLogLineResult
 		{
-			[MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
-			public string logLine;
-		}
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+            private string logLine;
+
+            public string LogLine { get => logLine; set => logLine = value; }
+        }
 
 		public string GetLogLine()
 		{
 			var data = new GetLogLineResult();
 			DeviceIoControl<GetLogLineResult>(TAP_IOCTL_GET_LOG_LINE, null);
-			return data.logLine;
+			return data.LogLine;
 		}
 
 		private T DeviceIoControl<T>(uint ioctl, object data)

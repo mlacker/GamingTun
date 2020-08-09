@@ -1,10 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
+﻿using System.IO;
 using System.Linq;
 using System.Management;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace GamingTun
@@ -17,22 +14,39 @@ namespace GamingTun
 
         public TapAdapter(Config config)
         {
-            device = new TunTapDevice(string.Empty);
+            device = new TunTapDevice(config.AdapterName);
             stream = device.Stream;
             this.config = config;
         }
 
         public void Start()
         {
-            device.SetMediaStatus(true);
+            SetIpProps();
 
+            SetPtp();
+
+            SetConnected();
+        }
+
+        private void SetIpProps()
+        {
+            // netsh interface ip set address my-tap static 10.3.0.1 255.255.255.0
+        }
+
+        private void SetPtp()
+        {
+            //device.ConfigTun(config.Local, config.Local & config.RemoteNetmask, config.RemoteNetmask);
             device.ConfigTun(config.Local, config.RemoteNetwork, config.RemoteNetmask);
+        }
 
-            SetStaticIpAddress();
+        private void SetConnected()
+        {
+            device.SetMediaStatus(true);
         }
 
         private void SetStaticIpAddress()
         {
+            // netsh interface ip set address my-tap static 10.3.0.1 255.255.255.0
             var searcher = new ManagementObjectSearcher("root\\CIMV2",
                 $"SELECT * FROM Win32_NetworkAdapterConfiguration Where SettingID='{device.Guid:B}'");
             var managerment = searcher.Get().OfType<ManagementObject>().First();
@@ -57,7 +71,9 @@ namespace GamingTun
 
         private const int BUFFER_SIZE = 1024 * 10;
 
-        private async Task Run()
+        public TapAdapter OtherAdapter { get; set; }
+
+        public async Task Run()
         {
             byte[] buffer = new byte[BUFFER_SIZE];
             int count = 0;
@@ -65,15 +81,18 @@ namespace GamingTun
             while (true)
             {
                 count = await stream.ReadAsync(buffer, 0, BUFFER_SIZE);
+                await OtherAdapter.stream.WriteAsync(buffer, 0, count);
+                OtherAdapter.stream.Flush();
             }
         }
     }
 
     public class Config
     {
-        public IPAddress Local { get; private set; }
+        public IPAddress Local { get; set; }
         public IPAddress RemoteNetwork { get; private set; }
         public IPAddress RemoteNetmask { get; private set; }
+        public string AdapterName { get; set; }
 
         public Config()
         {
