@@ -18,7 +18,7 @@ namespace GamingTun
             var serviceProvider = ConfigureServices(new ServiceCollection(), configuration);
             var controller = serviceProvider.GetRequiredService<Controller>();
 
-            controller.Run().Wait();
+            controller.Run();
         }
 
 
@@ -30,6 +30,8 @@ namespace GamingTun
                     .AddNLog()
                 )
                 .AddSingleton<Controller>()
+                .AddSingleton<TapAdapter>()
+                .AddSingleton<Tunnel>()
                 .AddTransient<Config>();
 
             var profile = configuration.GetValue<string>("profile");

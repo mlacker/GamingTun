@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -14,62 +15,136 @@ namespace GamingTun
 
         private readonly UdpClient client;
         private readonly Stream stream;
-        private IPEndPoint remoteEP;
+        private readonly Config config;
+        private readonly ILogger<Tunnel> logger;
 
-        public Tunnel(IPEndPoint localEP, TapAdapter adapter)
+        private IPEndPoint remoteEP;
+        private CancellationToken cancellationToken;
+
+        public Tunnel(TapAdapter adapter, Config config, ILogger<Tunnel> logger)
         {
-            client = new UdpClient(localEP);
+            client = new UdpClient(config.Local);
             stream = adapter.Stream;
+            this.config = config;
+            this.logger = logger;
+
+            logger.LogInformation($"Network : {config.Address} {config.Netmask} {config.DriverName}");
+            logger.LogInformation($"Listen  : {config.Local.Address}:{config.Local.Port}");
+            if (config.Remote != null)
+                logger.LogInformation($"Connect : {config.Remote.Address}:{config.Remote.Port}");
         }
 
-        private volatile bool state;
+        public Task Run(CancellationToken cancellationToken)
+        {
+            this.cancellationToken = cancellationToken;
 
-        public Task Connect(IPEndPoint endPoint)
+            if (config.Remote != null)
+                Connect(config.Remote);
+
+            var send = new Task(Send, cancellationToken, TaskCreationOptions.LongRunning);
+            var recv = new Task(Receive, cancellationToken, TaskCreationOptions.LongRunning);
+
+            if (logger.IsEnabled(LogLevel.Trace))
+            {
+                Task.Run(async () =>
+                {
+                    while (!cancellationToken.IsCancellationRequested)
+                    {
+                        await Task.Delay(5000);
+
+                        logger.LogTrace($"send status: {send.Status}, recv status: {recv.Status}");
+                    }
+                });
+            }
+
+            send.Start();
+            logger.LogDebug("Begin send");
+            recv.Start();
+            logger.LogDebug("Begin recv");
+
+            return Task.WhenAll(send, recv);
+        }
+
+        public void Connect(IPEndPoint endPoint)
         {
             remoteEP = endPoint;
-
-            state = true;
-
-            return Task.CompletedTask;
         }
 
-        public async Task Receive(CancellationToken cancellationToken)
+        public void Receive()
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var receiveResult = await client.ReceiveAsync();
-
-                if (!state)
+                try
                 {
-                    await Connect(receiveResult.RemoteEndPoint);
+                    var buffer = client.Receive(ref remoteEP);
+
+                    LogBuffer("RecvForm", buffer, buffer.Length);
+
+                    stream.Write(buffer, 0, buffer.Length);
+                    stream.Flush();
                 }
-
-                var buffer = receiveResult.Buffer;
-
-                Console.WriteLine($"From {remoteEP.Address}:{remoteEP.Port}: {Encoding.UTF8.GetString(buffer)}");
-
-                await stream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
-                stream.Flush();
+                catch (SocketException ex)
+                {
+                    logger.LogWarning(ex, "Recv");
+                }
             }
         }
 
-        public async Task Send(CancellationToken cancellationToken)
+        public void Send()
         {
             var buffer = new byte[BUFFER_SIZE];
 
-            await Task.Delay(10);
-
             while (!cancellationToken.IsCancellationRequested)
             {
-                var count = await stream.ReadAsync(buffer, 0, BUFFER_SIZE);
+                try
+                {
+                    var count = stream.Read(buffer, 0, BUFFER_SIZE);
 
-                client.Send(buffer, count, remoteEP);
+                    LogBuffer("SendTo  ", buffer, count);
+
+                    client.Send(buffer, count, remoteEP);
+                }
+                catch (OperationCanceledException ex)
+                {
+                    logger.LogWarning(ex, "Send");
+                }
             }
         }
 
         public void Dispose()
         {
             client.Dispose();
+        }
+
+        private void LogBuffer(string action, byte[] buffer, int count)
+        {
+            StringBuilder message = new StringBuilder();
+
+            var protocolType = (ProtocolType)buffer[9];
+
+            message.AppendFormat("{0} {1}:{2} Protocol:{3} ", action, remoteEP.Address, remoteEP.Port, protocolType);
+
+            if (protocolType == ProtocolType.Icmp)
+            {
+                var pingType = string.Empty;
+                switch (buffer[20])
+                {
+                    case 0x00:
+                        pingType = "Reply ";
+                        break;
+                    case 0x08:
+                        pingType = "Request ";
+                        break;
+                    default:
+                        break;
+                }
+                message.Append(pingType);
+            }
+
+            message.AppendLine();
+            message.AppendLine(BitConverter.ToString(buffer, 20, count - 20).Replace('-', ' '));
+
+            logger.LogDebug(message.ToString());
         }
     }
 }

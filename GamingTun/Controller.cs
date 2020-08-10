@@ -8,57 +8,60 @@ namespace GamingTun
     public class Controller
     {
         private readonly CancellationTokenSource cancellationTokenSource;
+        private readonly Tunnel tunnel;
+        private readonly TapAdapter adapter;
         private readonly Config config;
         private readonly ILogger logger;
 
-        public Controller(ILogger<Controller> logger, Config config)
+        public Controller(Tunnel tunnel, TapAdapter adapter, Config config, ILogger<Controller> logger)
         {
-            this.logger = logger;
+            this.tunnel = tunnel;
+            this.adapter = adapter;
             this.config = config;
+            this.logger = logger;
 
             this.cancellationTokenSource = new CancellationTokenSource();
-
-            logger.LogInformation($"Network : {config.Address} {config.Netmask} {config.DriverName}");
-            logger.LogInformation($"Listen  : {config.Local.Address}:{config.Local.Port}");
-            if (config.Remote != null)
-                logger.LogInformation($"Connect : {config.Remote.Address}:{config.Remote.Port}");
         }
 
-        public async Task Run()
+        public void Run()
         {
             try
             {
-                using (var adapter = new TapAdapter(config))
-                using (var tunnel = new Tunnel(config.Local, adapter))
-                {
-                    adapter.Start();
+                adapter.Start();
 
-                    if (config.Remote != null)
-                        await tunnel.Connect(config.Remote);
+                var conn = tunnel.Run(cancellationTokenSource.Token);
 
-                    var send = tunnel.Send(cancellationTokenSource.Token);
-                    var recv = tunnel.Receive(cancellationTokenSource.Token);
+                var exit = WaitToExit();
 
-                    var exit = WaitToExit();
-
-                    Task.WaitAll(new[] { send, recv, exit }, cancellationTokenSource.Token);
-                }
+                Task.WaitAny(conn, exit);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException ex)
             {
-                logger.LogError(ex, ex.Message);
+                logger.LogWarning(ex, ex.Message);
             }
+            finally
+            {
+                Dispose();
+            }
+
+            Console.ReadKey(true);
         }
 
         private Task WaitToExit()
         {
-            Console.WriteLine("Press any key to exit");
-            Console.ReadKey(true);
+            Console.WriteLine("Press enter key to exit");
+            Console.ReadLine();
 
             logger.LogInformation("Shutting down...");
             cancellationTokenSource.Cancel();
 
             return Task.Delay(1000);
+        }
+
+        private void Dispose()
+        {
+            tunnel.Dispose();
+            adapter.Dispose();
         }
     }
 }
