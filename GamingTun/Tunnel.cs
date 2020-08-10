@@ -14,11 +14,11 @@ namespace GamingTun
 
         private readonly UdpClient client;
         private readonly Stream stream;
-        private IPEndPoint remoteEndPoint;
+        private IPEndPoint remoteEP;
 
-        public Tunnel(int port, TapAdapter adapter)
+        public Tunnel(IPEndPoint localEP, TapAdapter adapter)
         {
-            client = new UdpClient(port, AddressFamily.InterNetwork);
+            client = new UdpClient(localEP);
             stream = adapter.Stream;
         }
 
@@ -26,7 +26,7 @@ namespace GamingTun
 
         public Task Connect(IPEndPoint endPoint)
         {
-            remoteEndPoint = endPoint;
+            remoteEP = endPoint;
 
             state = true;
 
@@ -46,7 +46,7 @@ namespace GamingTun
 
                 var buffer = receiveResult.Buffer;
 
-                Console.WriteLine($"From {remoteEndPoint.Address}:{remoteEndPoint.Port}: {Encoding.UTF8.GetString(buffer)}");
+                Console.WriteLine($"From {remoteEP.Address}:{remoteEP.Port}: {Encoding.UTF8.GetString(buffer)}");
 
                 await stream.WriteAsync(buffer, 0, buffer.Length, cancellationToken);
                 stream.Flush();
@@ -61,16 +61,10 @@ namespace GamingTun
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                var count = stream.Read(buffer, 0, BUFFER_SIZE);
+                var count = await stream.ReadAsync(buffer, 0, BUFFER_SIZE);
 
-                client.Send(buffer, count, remoteEndPoint);
+                client.Send(buffer, count, remoteEP);
             }
-        }
-
-        public Task SendString(string text)
-        {
-            var buffer = Encoding.Default.GetBytes(text);
-            return client.SendAsync(buffer, buffer.Length, remoteEndPoint);
         }
 
         public void Dispose()

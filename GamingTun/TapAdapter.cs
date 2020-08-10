@@ -1,9 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
-using System.Management;
-using System.Net;
-using System.Threading.Tasks;
 
 namespace GamingTun
 {
@@ -17,7 +13,7 @@ namespace GamingTun
         {
             this.config = config;
 
-            device = new TunTapDevice(config.AdapterName);
+            device = new TunTapDevice(config.DriverName);
             stream = device.Stream;
         }
 
@@ -55,7 +51,7 @@ namespace GamingTun
 
         private void SetPtp()
         {
-            device.ConfigTun(config.Local, config.RemoteNetwork, config.RemoteNetmask);
+            device.ConfigTun(config.Address, config.Network, config.Netmask);
         }
 
         private void SetConnected()
@@ -67,13 +63,5 @@ namespace GamingTun
         {
             stream.Dispose();
         }
-    }
-
-    public class Config
-    {
-        public IPAddress Local { get; set; }
-        public IPAddress RemoteNetwork { get; set; }
-        public IPAddress RemoteNetmask { get; set; }
-        public string AdapterName { get; set; } = string.Empty;
     }
 }
