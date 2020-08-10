@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,52 +7,46 @@ namespace GamingTun
 {
     public class Controller
     {
-        private readonly CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        private Config config;
+        private readonly CancellationTokenSource cancellationTokenSource;
+        private readonly Config config;
+        private readonly ILogger logger;
 
-        public Controller()
+        public Controller(ILogger<Controller> logger, Config config)
         {
-        }
+            this.logger = logger;
+            this.config = config;
 
-        public void Setup()
-        {
-            Console.Write("Select profile[default]: ");
-            var profile = Console.ReadLine();
+            this.cancellationTokenSource = new CancellationTokenSource();
 
-            switch (profile)
-            {
-                default:
-                case "1":
-                    config = new Config("192.168.46.10", "255.255.255.0", 6000, "172.16.10.38", 7000, "Tun1");
-                    break;
-                case "2":
-                    config = new Config("192.168.46.20", "255.255.255.0", 7000, "Tun2");
-                    break;
-            }
-
-            Console.WriteLine($"Network : {config.Address} {config.Netmask} {config.DriverName}");
-            Console.WriteLine($"Network : {config.Address} {config.Netmask} {config.DriverName}");
-            Console.WriteLine($"Listen  : {config.Local.Address}:{config.Local.Port}");
+            logger.LogInformation($"Network : {config.Address} {config.Netmask} {config.DriverName}");
+            logger.LogInformation($"Listen  : {config.Local.Address}:{config.Local.Port}");
             if (config.Remote != null)
-                Console.WriteLine($"Connect : {config.Remote.Address}:{config.Remote.Port}");
+                logger.LogInformation($"Connect : {config.Remote.Address}:{config.Remote.Port}");
         }
 
         public async Task Run()
         {
-            using (var adapter = new TapAdapter(config))
-            using (var tunnel = new Tunnel(config.Local, adapter))
+            try
             {
-                adapter.Start();
+                using (var adapter = new TapAdapter(config))
+                using (var tunnel = new Tunnel(config.Local, adapter))
+                {
+                    adapter.Start();
 
-                if (config.Remote != null)
-                    await tunnel.Connect(config.Remote);
+                    if (config.Remote != null)
+                        await tunnel.Connect(config.Remote);
 
-                var send = tunnel.Send(cancellationTokenSource.Token);
-                var recv = tunnel.Receive(cancellationTokenSource.Token);
+                    var send = tunnel.Send(cancellationTokenSource.Token);
+                    var recv = tunnel.Receive(cancellationTokenSource.Token);
 
-                var exit = WaitToExit();
+                    var exit = WaitToExit();
 
-                Task.WaitAll(new[] { send, recv, exit }, cancellationTokenSource.Token);
+                    Task.WaitAll(new[] { send, recv, exit }, cancellationTokenSource.Token);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, ex.Message);
             }
         }
 
@@ -62,7 +55,7 @@ namespace GamingTun
             Console.WriteLine("Press any key to exit");
             Console.ReadKey(true);
 
-            Console.WriteLine("Shutting down...");
+            logger.LogInformation("Shutting down...");
             cancellationTokenSource.Cancel();
 
             return Task.Delay(1000);

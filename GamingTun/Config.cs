@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using Microsoft.Extensions.Options;
+using System.Net;
 
 namespace GamingTun
 {
@@ -11,13 +12,17 @@ namespace GamingTun
         public IPEndPoint Remote { get; set; }
         public string DriverName { get; set; }
 
-        public Config(string address, string netmask, int localPort, string driverName = "")
+        public Config(IOptionsSnapshot<ConfigOptions> optionsSnapshot)
         {
-            Address = IPAddress.Parse(address);
-            Netmask = IPAddress.Parse(netmask);
-            DriverName = driverName;
+            var options = optionsSnapshot.Value;
 
-            Local = new IPEndPoint(IPAddress.Any, localPort);
+            Local = options.Parse(options.Local);
+            if (!string.IsNullOrEmpty(options.Remote))
+                Remote = options.Parse(options.Remote);
+
+            DriverName = options.DriverName;
+            Address = IPAddress.Parse(options.Address);
+            Netmask = IPAddress.Parse(options.Netmask);
 
             var networkBytes = Address.GetAddressBytes();
             for (int i = 0; i < networkBytes.Length; i++)
@@ -26,11 +31,28 @@ namespace GamingTun
             }
             Network = new IPAddress(networkBytes);
         }
+    }
 
-        public Config(string local, string netmask, int localPort, string remote, int remotePort, string driverName = "")
-            : this(local, netmask, localPort, driverName)
+    public class ConfigOptions
+    {
+        public ConfigOptions()
         {
-            Remote = new IPEndPoint(IPAddress.Parse(remote), remotePort);
+            DriverName = string.Empty;
+            Address = "192.168.46.10";
+            Netmask = "255.255.255.0";
+            Local = "0.0.0.0:6000";
         }
+
+        public string DriverName { get; set; }
+        public string Address { get; set; }
+        public string Netmask { get; set; }
+        public string Local { get; set; }
+        public string Remote { get; set; }
+
+        public IPEndPoint Parse(string parts) =>
+            new IPEndPoint(
+                IPAddress.Parse(parts.Split(':')[0]),
+                int.Parse(parts.Split(':')[1])
+            );
     }
 }

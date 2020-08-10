@@ -1,0 +1,27 @@
+{
+  "Profile1": {
+    "Local": "0.0.0.0:6000",
+    "Remote": "122.224.94.210:31194",
+    "DriverName": "Tun1",
+    "Address": "192.168.46.10",
+    "Netmask": "255.255.255.0"
+  },
+  "Profile2": {
+    "Local": "0.0.0.0:1194",
+    "DriverName": "Tun2",
+    "Address": "192.168.46.20",
+    "Netmask": "255.255.255.0"
+  },
+  "Profile3": {
+    "Local": "0.0.0.0:6000",
+    "Remote": "172.16.10.38:1194",
+    "DriverName": "Tun3",
+    "Address": "192.168.46.30",
+    "Netmask": "255.255.255.0"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Debug"
+    }
+  }
+}
