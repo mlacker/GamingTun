@@ -11,7 +11,7 @@ namespace GamingTun
 {
     public class Tunnel : IDisposable
     {
-        private const int BUFFER_SIZE = 1464;
+        private const int BUFFER_SIZE = 1460;
 
         private readonly UdpClient client;
         private readonly Stream stream;
@@ -44,23 +44,8 @@ namespace GamingTun
             var send = new Task(Send, cancellationToken, TaskCreationOptions.LongRunning);
             var recv = new Task(Receive, cancellationToken, TaskCreationOptions.LongRunning);
 
-            if (logger.IsEnabled(LogLevel.Trace))
-            {
-                Task.Run(async () =>
-                {
-                    while (!cancellationToken.IsCancellationRequested)
-                    {
-                        await Task.Delay(5000);
-
-                        logger.LogTrace($"send status: {send.Status}, recv status: {recv.Status}");
-                    }
-                });
-            }
-
             send.Start();
-            logger.LogDebug("Begin send");
             recv.Start();
-            logger.LogDebug("Begin recv");
 
             return Task.WhenAll(send, recv);
         }
@@ -118,6 +103,11 @@ namespace GamingTun
 
         private void LogBuffer(string action, byte[] buffer, int count)
         {
+            if (!logger.IsEnabled(LogLevel.Trace))
+            {
+                return;
+            }
+
             StringBuilder message = new StringBuilder();
 
             var protocolType = (ProtocolType)buffer[9];
@@ -144,7 +134,7 @@ namespace GamingTun
             message.AppendLine();
             message.AppendLine(BitConverter.ToString(buffer, 20, count - 20).Replace('-', ' '));
 
-            logger.LogDebug(message.ToString());
+            logger.LogTrace(message.ToString());
         }
     }
 }

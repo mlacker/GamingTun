@@ -47,6 +47,8 @@ namespace GamingTun
             //var dnsParameters = managerment.GetMethodParameters("SetDNSServerSearchOrder");
             //dnsParameters["DNSServerSearchOrder"] = new[] { "192.168.46.254" };
             //managerment.InvokeMethod("SetDNSServerSearchOrder", dnsParameters, null);
+
+            //netsh interface ipv4 set interface Tun2 mtu=1460
         }
 
         private void SetPtp()
